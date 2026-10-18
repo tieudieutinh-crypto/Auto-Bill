@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auto Bill</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 21'%3E%3Cpath fill='%231B6B58' d='M0 0h16v21l-2.7-1.9L10.7 21 8 19.1 5.3 21 2.6 19.1 0 21z'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,500;0,600;0,700;0,800;1,500;1,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Serif:wght@600;700&display=swap">
+<style>
+/* Layout: entry form on the left, a live A5 retail invoice (Mẫu NC01-MC) on the right, sticky on desktop; stacks on phones. */
+  :root {
+    --bg: #EEF1EF;
+    --surface: #FFFFFF;
+    --surface-2: #F5F7F6;
+    --fg: #16201C;
+    --muted: #586661;
+    --line: #D3DAD6;
+    --accent: #1B6B58;
+    --accent-fg: #FFFFFF;
+    --desk: #DDE3E0;
+    --danger: #A3341F;
+    /* The printed sheet is always pale grey paper with blue print and dark pen, in both themes. */
+    --paper: #EFEEEA;
+    --paper-ink: #2B6A9C;
+    --paper-ink-soft: #7FA3C2;
+    --paper-band: #D5E3EE;
+    --paper-pen: #141C24;
+    --display: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+    --serif: "Noto Serif", Georgia, "Times New Roman", serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0F1412; --surface: #171E1B; --surface-2: #1D2622; --fg: #E5ECE8; --muted: #92A19A;
+      --line: #2A3631; --accent: #52B896; --accent-fg: #07130E; --desk: #0A0E0C; --danger: #F0836E;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0F1412; --surface: #171E1B; --surface-2: #1D2622; --fg: #E5ECE8; --muted: #92A19A;
+    --line: #2A3631; --accent: #52B896; --accent-fg: #07130E; --desk: #0A0E0C; --danger: #F0836E;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--body);
+    font-size: 14px;
+    line-height: 1.5;
+    padding-block: 20px 40px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .wrap { max-width: 1240px; margin: 0 auto; }
+
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 16px; margin-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; font: 800 19px/1 var(--display); letter-spacing: -0.02em; }
+  .mark { width: 16px; height: 21px; background: var(--accent); clip-path: polygon(0 0, 100% 0, 100% 100%, 83% 91%, 66% 100%, 50% 91%, 33% 100%, 16% 91%, 0 100%); }
+  .top-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .btn { font: 600 13px var(--body); border-radius: 6px; padding: 9px 14px; min-height: 38px; cursor: pointer; border: 1px solid var(--line); background: var(--surface); color: var(--fg); }
+  .btn:hover { border-color: var(--muted); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+  .btn.primary:hover { filter: brightness(1.07); }
+  .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .btn:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, .icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  @media (min-width: 960px) {
+    .layout { grid-template-columns: minmax(360px, 440px) minmax(0, 1fr); gap: 36px; }
+    .preview { position: sticky; top: 16px; align-self: start; }
+  }
+
+  .sec { padding-block: 20px; border-top: 1px solid var(--line); }
+  .sec:first-child { border-top: 0; }
+  .sec-title { margin: 0 0 14px; font: 600 12px var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .span2 { grid-column: 1 / -1; }
+  .fld { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .fld > span { font-size: 12px; font-weight: 500; color: var(--muted); }
+  input, select, textarea { font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; min-height: 38px; width: 100%; min-width: 0; }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  input[type="number"] { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  .item { background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; }
+  .item-top { display: flex; gap: 8px; align-items: flex-end; }
+  .grow { flex: 1; }
+  .item-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 1.3fr) minmax(0, 1.4fr); gap: 8px; }
+  @media (max-width: 440px) { .item-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .amt { display: flex; align-items: center; min-height: 38px; font: 500 13px var(--mono); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .icon-btn { flex: none; width: 38px; height: 38px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 6px; font-size: 20px; line-height: 1; cursor: pointer; }
+  .icon-btn:hover { color: var(--danger); border-color: var(--danger); }
+  .items-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .sum { display: flex; align-items: baseline; gap: 10px; font-size: 13px; color: var(--muted); }
+  .sum strong { font: 600 16px var(--mono); color: var(--fg); font-variant-numeric: tabular-nums; }
+  .words-note { margin: 10px 0 0; font-size: 12.5px; color: var(--muted); }
+
+  .hist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .hist li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: baseline; padding: 8px 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; font-size: 13px; }
+  .hist .no { font: 600 13px var(--mono); }
+  .hist .who { min-width: 0; overflow-wrap: anywhere; color: var(--muted); }
+  .hist .amt2 { font: 500 12.5px var(--mono); font-variant-numeric: tabular-nums; }
+  .actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-top: 20px; border-top: 1px solid var(--line); }
+  .status { font-size: 13px; color: var(--muted); }
+  .status.err { color: var(--danger); }
+
+  .preview-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+  .preview-head h2 { margin: 0; font: 600 12px var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  .preview-head span { font: 400 12px var(--mono); color: var(--muted); }
+  .desk { background: var(--desk); border-radius: 8px; padding: 14px; display: flex; justify-content: center; }
+  .sheet-wrap { position: relative; overflow: hidden; width: 100%; max-width: 559px; }
+  .scaler { width: 559px; transform-origin: 0 0; }
+
+  /* ---------- The sheet: 559px wide = A5 (148 mm) at 96 dpi ---------- */
+  .paper { position: relative; width: 559px; min-height: 794px; padding: 30px 30px 30px 38px; background: var(--paper); color: var(--paper-ink); font: 500 11px/1.4 var(--body); display: flex; flex-direction: column; }
+  .p-form { position: absolute; top: 16px; right: 22px; text-align: right; font: italic 600 7.5px/1.35 var(--serif); color: var(--paper-ink); }
+  .p-side { position: absolute; left: 10px; top: 50%; transform: translateY(-50%) rotate(180deg); writing-mode: vertical-rl; font: italic 600 6.5px/1 var(--serif); letter-spacing: 0.02em; white-space: nowrap; color: var(--paper-ink); }
+
+  .p-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin-top: 18px; align-items: start; }
+  .p-line { display: flex; align-items: flex-end; gap: 6px; min-height: 22px; font: 600 11.5px var(--display); letter-spacing: 0.02em; white-space: nowrap; }
+  .p-line .fill { flex: 1; min-width: 0; border-bottom: 1px solid var(--paper-ink); min-height: 18px; padding: 0 3px 1px; color: var(--paper-pen); font: 500 11px var(--body); letter-spacing: 0; white-space: normal; overflow-wrap: anywhere; line-height: 1.25; }
+  .p-line.thin { font: italic 600 11.5px var(--display); }
+  .p-title-col { text-align: center; }
+  .p-title { margin: 2px 0 6px; font: 800 20px/1.1 var(--display); letter-spacing: 0.02em; text-transform: uppercase; }
+  .p-title-col .p-line { justify-content: flex-end; }
+  .p-title-col .p-line > b { font: italic 700 12px var(--serif); }
+  .p-buyer { margin-top: 14px; display: flex; flex-direction: column; gap: 4px; }
+
+  .p-frame { margin-top: 8px; border: 3px double var(--paper-ink); }
+  .p-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .p-table th { padding: 4px 3px; font: 500 11px/1.25 var(--display); text-align: center; border-bottom: 1px solid var(--paper-ink); border-left: 1px solid var(--paper-ink); height: 42px; }
+  .p-table th:first-child, .p-table td:first-child { border-left: 0; }
+  .p-table td { height: 25px; padding: 0 5px; border-left: 1px solid var(--paper-ink); border-bottom: 1px dotted var(--paper-ink-soft); vertical-align: middle; color: var(--paper-pen); font: 500 10.5px/1.2 var(--body); overflow-wrap: anywhere; }
+  .p-table td.tt { font: 500 14px var(--display); color: var(--paper-ink); text-align: left; padding-left: 8px; }
+  .p-table td.c { text-align: center; }
+  .p-table td.r { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .p-table tr.grand td { background: var(--paper-band); border-bottom: 0; height: 28px; font-weight: 600; }
+  .p-table tr.grand td.lbl { font: italic 700 13px var(--display); color: var(--paper-ink); text-align: center; letter-spacing: 0.04em; }
+  .p-table th.tt-h { width: 9%; }
+  .p-table th.nm-h { width: 35%; }
+  .p-table th.un-h { width: 11%; }
+  .p-table th.qt-h { width: 11%; }
+  .p-table th.pr-h { width: 14%; }
+
+  .p-words { margin-top: 10px; font: italic 600 11.5px/22px var(--display); background: repeating-linear-gradient(to bottom, transparent 0 21px, var(--paper-ink) 21px 22px); min-height: 44px; }
+  .p-words .t { font: 500 11px/22px var(--body); color: var(--paper-pen); }
+  .p-date { margin-top: 10px; text-align: right; font: italic 600 11.5px var(--display); padding-right: 6px; }
+  .p-date .d { display: inline-block; min-width: 38px; text-align: center; border-bottom: 1px dotted var(--paper-ink); color: var(--paper-pen); font: 500 11px var(--body); padding: 0 2px; }
+  .p-sign { margin-top: auto; padding-top: 6px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font: 700 11.5px var(--serif); }
+  .p-sign span:nth-child(2) { text-align: center; }
+  .p-sign span:nth-child(3) { text-align: right; }
+  .p-sign-gap { height: 56px; flex: none; }
+  .p-frame { flex: none; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+  /* Print / "Save as PDF" through the browser: only the sheet, on one A5 page. */
+  @page { size: A5 portrait; margin: 0; }
+  @media print {
+    :root { padding: 0 !important; }
+    html, body { background: #fff !important; padding: 0 !important; margin: 0 !important; }
+    .top, .editor, .preview-head { display: none !important; }
+    .wrap, .layout, .preview, .desk, .sheet-wrap, .scaler { display: block !important; position: static !important; padding: 0 !important; margin: 0 !important; width: auto !important; max-width: none !important; height: auto !important; transform: none !important; background: none !important; overflow: visible !important; border-radius: 0 !important; }
+    .paper { width: 559px !important; min-height: 208mm !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><span class="mark" aria-hidden="true"></span>Auto Bill</div>
+    <div class="top-actions">
+      <button type="button" class="btn" id="sampleBtn">Dùng dữ liệu mẫu</button>
+      <button type="button" class="btn" id="clearBtn">Xóa biểu mẫu</button>
+      <button type="button" class="btn primary js-pdf">Tải PDF</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <form class="editor" id="editor" autocomplete="off">
+      <section class="sec">
+        <h2 class="sec-title">Đơn vị bán hàng</h2>
+        <div class="grid2">
+          <label class="fld span2"><span>Đơn vị</span><input id="f_s_name" data-f="s_name" type="text"></label>
+          <label class="fld span2"><span>Dòng thứ hai (địa chỉ, điện thoại)</span><input id="f_s_addr" data-f="s_addr" type="text"></label>
+          <label class="fld"><span>Số hóa đơn kế tiếp</span><input id="f_number" type="number" min="1" step="1" inputmode="numeric"></label>
+          <label class="fld"><span>Ngày lập</span><input id="f_issued" data-f="issued" type="date"></label>
+        </div>
+      </section>
+
+      <section class="sec">
+        <h2 class="sec-title">Người mua hàng</h2>
+        <div class="grid2">
+          <label class="fld span2"><span>Họ tên người mua hàng</span><input id="f_c_name" data-f="c_name" type="text"></label>
+          <label class="fld span2"><span>Đơn vị cơ quan</span><input id="f_c_org" data-f="c_org" type="text"></label>
+        </div>
+      </section>
+
+      <section class="sec">
+        <h2 class="sec-title">Tên hàng và quy cách phẩm chất</h2>
+        <div id="items"></div>
+        <datalist id="units">
+          <option value="Kg"></option><option value="Cuốn"></option><option value="Hủ"></option>
+          <option value="Cái"></option><option value="Gói"></option><option value="Hộp"></option>
+          <option value="Túi"></option><option value="Chai"></option><option value="Thùng"></option>
+          <option value="Bộ"></option><option value="Gram"></option><option value="Lít"></option>
+          <option value="Chuyến"></option><option value="Giờ"></option>
+        </datalist>
+        <div class="items-foot">
+          <button type="button" class="btn" id="addItem">Thêm dòng hàng</button>
+          <div class="sum"><span>Cộng</span><strong id="sumTotal">0</strong></div>
+        </div>
+        <p class="words-note" id="wordsNote"></p>
+      </section>
+
+      <section class="sec">
+        <h2 class="sec-title">Hóa đơn đã xuất</h2>
+        <ol class="hist" id="hist"></ol>
+        <p class="words-note" id="histNote">Chưa có hóa đơn nào được xuất. Số hóa đơn tăng thêm 1 sau mỗi lần tạo PDF thành công.</p>
+      </section>
+
+      <div class="actions">
+        <button type="button" class="btn primary js-pdf">Tải PDF</button>
+        <span class="status" id="status" role="status" aria-live="polite"></span>
+      </div>
+    </form>
+
+    <section class="preview" id="previewCol" aria-label="Xem trước hóa đơn">
+      <div class="preview-head"><h2>Xem trước</h2><span id="pageInfo">A5</span></div>
+      <div class="desk">
+        <div class="sheet-wrap" id="sheetWrap">
+          <div class="scaler" id="scaler"><article class="paper" id="paper"></article></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+
+
+<script>
+
+(function () {
+  var STORE = 'autobill.draft.v3';
+  var PAGE_W = 559, PAGE_H = 794;   // A5 at 96 dpi
+  var MIN_ROWS = 14;                // the printed form has 14 numbered rows
+  var PRESETS = [
+    ['Khoai Môn', 'Kg'],
+    ['Khoai Môn bào sợi', 'Kg'],
+    ['Chả Giò Hải Sản', 'Cuốn'],
+    ['Yaua Phomai', 'Hủ'],
+    ['Yaua Truyền thống', 'Hủ']
+  ];
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var esc = function (s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  };
+  var num = function (v) { var n = parseFloat(v); return isFinite(n) ? n : 0; };
+  var pad = function (n) { return String(n).padStart(2, '0'); };
+  var iso = function (d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); };
+  var presetFor = function (name) {
+    for (var i = 0; i < PRESETS.length; i++) if (PRESETS[i][0] === name) return PRESETS[i];
+    return null;
+  };
+  var moneyFmt = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 });
+  var qtyFmt = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 3 });
+
+  /* ---------- number to Vietnamese words ---------- */
+  var DIGITS = ['không', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín'];
+  var SCALES = ['', 'nghìn', 'triệu', 'tỷ', 'nghìn tỷ', 'triệu tỷ'];
+  function triple(n, full) {
+    var h = Math.floor(n / 100), t = Math.floor(n / 10) % 10, u = n % 10, out = [];
+    if (h > 0 || full) out.push(DIGITS[h] + ' trăm');
+    if (t > 1) {
+      out.push(DIGITS[t] + ' mươi');
+      if (u === 1) out.push('mốt'); else if (u === 5) out.push('lăm'); else if (u > 0) out.push(DIGITS[u]);
+    } else if (t === 1) {
+      out.push('mười');
+      if (u === 5) out.push('lăm'); else if (u > 0) out.push(DIGITS[u]);
+    } else if (u > 0) {
+      if (h > 0 || full) out.push('lẻ');
+      out.push(DIGITS[u]);
+    }
+    return out.join(' ');
+  }
+  function moneyWords(n) {
+    n = Math.round(n);
+    if (!isFinite(n) || n <= 0) return n === 0 ? '' : '';
+    var groups = [];
+    while (n > 0) { groups.push(n % 1000); n = Math.floor(n / 1000); }
+    var parts = [];
+    for (var i = groups.length - 1; i >= 0; i--) {
+      if (groups[i] === 0) continue;
+      var higher = false;
+      for (var j = i + 1; j < groups.length; j++) if (groups[j] > 0) higher = true;
+      var scale = SCALES[i] || '';
+      parts.push(triple(groups[i], higher) + (scale ? ' ' + scale : ''));
+    }
+    var s = parts.join(' ').replace(/\s+/g, ' ').trim();
+    return s.charAt(0).toUpperCase() + s.slice(1) + ' đồng chẵn.';
+  }
+
+  function blank() {
+    return {
+      f: { s_name: '', s_addr: '', number: '0001', issued: iso(new Date()), c_name: '', c_org: '' },
+      items: [{ desc: '', unit: '', qty: '1', price: '', mode: '' }]
+    };
+  }
+  function sample() {
+    var s = blank();
+    Object.assign(s.f, {
+      s_name: 'Cửa hàng Mẫu', s_addr: '12 Đường Chợ, Thành phố Mẫu · 0900 000 000',
+      c_name: 'Nguyễn Văn A', c_org: ''
+    });
+    s.items = [
+      { desc: 'Khoai Môn', unit: 'Kg', qty: '10', price: '35000', mode: 'preset' },
+      { desc: 'Khoai Môn bào sợi', unit: 'Kg', qty: '5', price: '60000', mode: 'preset' },
+      { desc: 'Chả Giò Hải Sản', unit: 'Cuốn', qty: '50', price: '8000', mode: 'preset' },
+      { desc: 'Yaua Phomai', unit: 'Hủ', qty: '20', price: '12000', mode: 'preset' }
+    ];
+    return s;
+  }
+
+  var state;
+  try {
+    var raw = localStorage.getItem(STORE);
+    var parsed = raw ? JSON.parse(raw) : null;
+    state = parsed && parsed.f && Array.isArray(parsed.items) ? parsed : sample();
+  } catch (e) { state = sample(); }
+
+  /* Invoice numbering: shared counter in the page database; local fallback when it is unavailable. */
+  var LAST_KEY = 'autobill.last';
+  var nextNo = 1;
+  try { nextNo = (parseInt(localStorage.getItem(LAST_KEY), 10) || 0) + 1; } catch (e) { nextNo = 1; }
+  var no4 = function (n) { return String(n).padStart(4, '0'); };
+  var numStr = function () { return no4(nextNo); };
+
+  var saveTimer = null;
+  function scheduleSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () {
+      try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) { /* storage unavailable */ }
+    }, 300);
+  }
+
+  function calc() {
+    var lines = state.items.map(function (it) {
+      var q = num(it.qty), p = num(it.price);
+      return { desc: it.desc, unit: it.unit, qty: q, price: p, amt: Math.round(q * p), blank: !it.desc && !num(it.price) };
+    });
+    var total = lines.reduce(function (a, l) { return a + l.amt; }, 0);
+    return { lines: lines, total: total };
+  }
+
+  /* ---------- sheet ---------- */
+  var paper = $('#paper'), scaler = $('#scaler'), wrap = $('#sheetWrap');
+
+  function dateParts(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
+    return m ? { d: String(+m[3]), m: String(+m[2]), y: m[1] } : { d: '', m: '', y: '' };
+  }
+
+  function render() {
+    var f = state.f, c = calc();
+    var filled = c.lines;
+    var n = filled.length;
+    var rows = '';
+    for (var i = 0; i < n; i++) {
+      var l = filled[i];
+      rows += '<tr><td class="tt">' + (i + 1) + '</td>' +
+        '<td>' + (l ? esc(l.desc) : '') + '</td>' +
+        '<td class="c">' + (l ? esc(l.unit) : '') + '</td>' +
+        '<td class="r">' + (l && l.qty ? qtyFmt.format(l.qty) : '') + '</td>' +
+        '<td class="r">' + (l && l.price ? moneyFmt.format(l.price) : '') + '</td>' +
+        '<td class="r">' + (l && (l.amt || l.price) ? moneyFmt.format(l.amt) : '') + '</td></tr>';
+    }
+    var words = moneyWords(c.total);
+    var dp = dateParts(f.issued);
+
+    paper.innerHTML =
+      '<div class="p-form">Mẫu số : NC01-MC<br>QĐ số 19/2006/QĐ-BTC</div>' +
+      '<div class="p-top">' +
+        '<div><div class="p-line"><span>ĐƠN VỊ :</span><span class="fill">' + esc(f.s_name) + '</span></div>' +
+        '<div class="p-line"><span class="fill">' + esc(f.s_addr) + '</span></div></div>' +
+        '<div class="p-title-col"><h1 class="p-title">Hóa đơn bán lẻ</h1>' +
+        '<div class="p-line"><b>Số :</b><span class="fill" style="max-width:150px">' + esc(numStr()) + '</span></div></div>' +
+      '</div>' +
+      '<div class="p-buyer">' +
+        '<div class="p-line thin"><span>Họ tên người mua hàng :</span><span class="fill">' + esc(f.c_name) + '</span></div>' +
+        '<div class="p-line thin"><span>Đơn vị cơ quan :</span><span class="fill">' + esc(f.c_org) + '</span></div>' +
+      '</div>' +
+      '<div class="p-frame"><table class="p-table"><thead><tr>' +
+        '<th class="tt-h">Số<br>TT</th><th class="nm-h">TÊN HÀNG VÀ QUY<br>CÁCH PHẨM CHẤT</th>' +
+        '<th class="un-h">Đơn vị<br>tính</th><th class="qt-h">Số<br>lượng</th><th class="pr-h">Giá<br>đơn vị</th><th>THÀNH TIỀN</th>' +
+      '</tr></thead><tbody>' + rows +
+        '<tr class="grand"><td></td><td class="lbl">CỘNG :</td><td></td><td></td><td></td><td class="r">' + (c.total ? moneyFmt.format(c.total) : '') + '</td></tr>' +
+      '</tbody></table></div>' +
+      '<div class="p-words">Cộng thành tiền (viết bằng chữ) : <span class="t">' + esc(words) + '</span></div>' +
+      '<div class="p-date">Ngày <span class="d">' + (dp.d || '&hellip;&hellip;') + '</span> Tháng <span class="d">' + (dp.m || '&hellip;&hellip;') + '</span> Năm <span class="d">' + (dp.y || '202&hellip;') + '</span></div>' +
+      '<div class="p-sign"><span>Người nhận hàng</span><span>Đã nhận đủ tiền</span><span>Người viết hóa đơn</span></div>' +
+      '<div class="p-sign-gap"></div>';
+
+    paper.style.minHeight = PAGE_H + 'px';
+    paper.style.height = 'auto';
+    var gapEl = paper.querySelector('.p-sign-gap'), dateEl = paper.querySelector('.p-date'), signEl = paper.querySelector('.p-sign');
+    if (gapEl && dateEl && signEl) {
+      gapEl.style.height = '56px';
+      var free = signEl.offsetTop - (dateEl.offsetTop + dateEl.offsetHeight);
+      if (free > 0) gapEl.style.height = (56 + Math.round(free * 0.51)) + 'px';
+    }
+    var pages = Math.max(1, Math.ceil((paper.offsetHeight - 2) / PAGE_H));
+    paper.style.minHeight = (pages * PAGE_H) + 'px';
+    $('#pageInfo').textContent = 'A5 · ' + pages + ' trang';
+    $('#sumTotal').textContent = moneyFmt.format(c.total) + ' ₫';
+    $('#wordsNote').textContent = words ? 'Bằng chữ: ' + words : '';
+    fit();
+  }
+
+  function fit() {
+    var s = Math.min(1, wrap.clientWidth / PAGE_W);
+    scaler.style.transform = 'scale(' + s + ')';
+    wrap.style.height = Math.ceil(paper.offsetHeight * s) + 'px';
+  }
+  if (window.ResizeObserver) new ResizeObserver(fit).observe($('#previewCol'));
+  window.addEventListener('resize', fit);
+
+  /* ---------- form ---------- */
+  var itemsEl = $('#items');
+  function selValue(it) {
+    if (it.mode === 'custom') return '__c';
+    if (presetFor(it.desc)) return it.desc;
+    return it.desc ? '__c' : '';
+  }
+  function itemsHTML() {
+    return state.items.map(function (it, i) {
+      var sv = selValue(it);
+      var opts = '<option value=""' + (sv === '' ? ' selected' : '') + '>— Chọn sản phẩm —</option>' +
+        PRESETS.map(function (p) { return '<option value="' + esc(p[0]) + '"' + (sv === p[0] ? ' selected' : '') + '>' + esc(p[0]) + '</option>'; }).join('') +
+        '<option value="__c"' + (sv === '__c' ? ' selected' : '') + '>Khác (nhập tay)…</option>';
+      var custom = sv === '__c'
+        ? '<label class="fld"><span>Tên hàng</span><input id="it' + i + '_desc" type="text" data-it="desc" placeholder="Nhập tên hàng và quy cách" value="' + esc(it.desc) + '"></label>'
+        : '';
+      return '<div class="item" data-i="' + i + '">' +
+        '<div class="item-top"><label class="fld grow"><span>Dòng ' + (i + 1) + '</span><select id="it' + i + '_sel" data-sel="1">' + opts + '</select></label>' +
+        '<button type="button" class="icon-btn" data-rm="' + i + '" aria-label="Xóa dòng ' + (i + 1) + '">×</button></div>' +
+        custom +
+        '<div class="item-grid">' +
+        '<label class="fld"><span>Đơn vị tính</span><input id="it' + i + '_unit" type="text" list="units" data-it="unit" value="' + esc(it.unit) + '"></label>' +
+        '<label class="fld"><span>Số lượng</span><input id="it' + i + '_qty" type="number" min="0" step="any" inputmode="decimal" data-it="qty" value="' + esc(it.qty) + '"></label>' +
+        '<label class="fld"><span>Giá đơn vị</span><input id="it' + i + '_price" type="number" min="0" step="any" inputmode="decimal" data-it="price" value="' + esc(it.price) + '"></label>' +
+        '<div class="fld"><span>Thành tiền</span><output class="amt"></output></div>' +
+        '</div></div>';
+    }).join('');
+  }
+  function buildItems() { itemsEl.innerHTML = itemsHTML(); updateAmts(); }
+  function updateAmts() {
+    var c = calc();
+    itemsEl.querySelectorAll('.item').forEach(function (el, i) {
+      var o = el.querySelector('.amt');
+      if (o && c.lines[i]) o.textContent = moneyFmt.format(c.lines[i].amt);
+    });
+  }
+  function syncNumber() {
+    var el = $('#f_number');
+    if (el && document.activeElement !== el) el.value = nextNo;
+  }
+  function syncForm() {
+    document.querySelectorAll('[data-f]').forEach(function (el) {
+      var v = state.f[el.dataset.f];
+      el.value = v == null ? '' : v;
+    });
+    buildItems();
+    syncNumber();
+  }
+
+  $('#editor').addEventListener('input', function (e) {
+    var t = e.target;
+    if (t.dataset.f) {
+      state.f[t.dataset.f] = t.value;
+    } else if (t.dataset.it) {
+      var i = +t.closest('.item').dataset.i;
+      state.items[i][t.dataset.it] = t.value;
+    } else { return; }
+    updateAmts();
+    render(); scheduleSave();
+  });
+  $('#editor').addEventListener('change', function (e) {
+    var t = e.target;
+    if (t.dataset.sel) {
+      var idx = +t.closest('.item').dataset.i, it = state.items[idx], v = t.value;
+      if (v === '__c') { it.mode = 'custom'; it.desc = ''; }
+      else if (v === '') { it.mode = ''; it.desc = ''; }
+      else { var p = presetFor(v); it.mode = 'preset'; it.desc = v; if (p) it.unit = p[1]; }
+      buildItems(); render(); scheduleSave();
+      if (v === '__c') { var inp = $('#it' + idx + '_desc'); if (inp) inp.focus(); }
+    }
+  });
+  $('#f_number').addEventListener('change', async function (e) {
+    var n = Math.floor(num(e.target.value));
+    if (n < 1) { syncNumber(); return; }
+    nextNo = n;
+    try { localStorage.setItem(LAST_KEY, String(n - 1)); } catch (err) { /* storage unavailable */ }
+    render();
+  });
+  $('#editor').addEventListener('submit', function (e) { e.preventDefault(); });
+  itemsEl.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-rm]');
+    if (!b) return;
+    state.items.splice(+b.dataset.rm, 1);
+    buildItems(); render(); scheduleSave();
+  });
+  $('#addItem').addEventListener('click', function () {
+    state.items.push({ desc: '', unit: '', qty: '1', price: '', mode: '' });
+    buildItems(); render(); scheduleSave();
+    var sels = itemsEl.querySelectorAll('select');
+    if (sels.length) sels[sels.length - 1].focus();
+  });
+  $('#clearBtn').addEventListener('click', function () { state = blank(); syncForm(); render(); scheduleSave(); setStatus(''); });
+  $('#sampleBtn').addEventListener('click', function () { state = sample(); syncForm(); render(); scheduleSave(); setStatus(''); });
+
+  var statusEl = $('#status');
+  function setStatus(msg, isErr) { statusEl.textContent = msg; statusEl.classList.toggle('err', !!isErr); }
+  var pdfBtns = document.querySelectorAll('.js-pdf');
+  var busy = false;
+
+  var histEl = $('#hist'), histNote = $('#histNote');
+  function renderHist(list) {
+    histEl.innerHTML = list.map(function (v) {
+      return '<li><span class="no">' + esc(v.number) + '</span><span class="who">' + esc(v.c_name || 'Khách lẻ') + (v.date ? ' · ' + esc(v.date) : '') + '</span><span class="amt2">' + moneyFmt.format(num(v.total)) + ' ₫</span></li>';
+    }).join('');
+    histNote.hidden = list.length > 0;
+  }
+  var HIST_KEY = 'autobill.hist';
+  function loadHist() { try { return JSON.parse(localStorage.getItem(HIST_KEY)) || []; } catch (e) { return []; } }
+  function pushHist(v) {
+    var h = loadHist(); h.unshift(v); h = h.slice(0, 10);
+    try { localStorage.setItem(HIST_KEY, JSON.stringify(h)); } catch (e) { /* storage unavailable */ }
+    renderHist(h);
+  }
+  renderHist(loadHist());
+  // Keep several tabs of the same browser in step.
+  window.addEventListener('storage', function (e) {
+    if (e.key === LAST_KEY) { nextNo = (parseInt(e.newValue, 10) || 0) + 1; syncNumber(); render(); }
+    if (e.key === HIST_KEY) renderHist(loadHist());
+  });
+
+  /* ---------- PDF (A5) ---------- */
+  var libsPromise = null;
+  function loadScript(src) {
+    return new Promise(function (ok, fail) {
+      var s = document.createElement('script');
+      s.src = src; s.onload = ok; s.onerror = function () { s.remove(); fail(new Error(src)); };
+      document.head.appendChild(s);
+    });
+  }
+  function loadLib(local, cdn, test) {
+    if (test()) return Promise.resolve();
+    return loadScript(cdn).then(function () { if (!test()) throw new Error('lib'); });
+  }
+  function ensureLibs() {
+    if (!libsPromise) {
+      libsPromise = Promise.all([
+        loadLib('vendor/jspdf.umd.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', function () { return !!(window.jspdf && window.jspdf.jsPDF); }),
+        loadLib('vendor/html2canvas.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js', function () { return !!window.html2canvas; })
+      ]).catch(function (e) { libsPromise = null; throw e; });
+    }
+    return libsPromise;
+  }
+  ensureLibs().catch(function () { /* retried on export */ });
+
+  async function buildPdf() {
+    render();
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    var stage = document.createElement('div');
+    stage.setAttribute('aria-hidden', 'true');
+    stage.style.cssText = 'position:fixed;left:0;top:0;width:' + PAGE_W + 'px;z-index:-1;pointer-events:none;';
+    var copy = paper.cloneNode(true);
+    copy.removeAttribute('id');
+    stage.appendChild(copy);
+    document.body.appendChild(stage);
+    try {
+      var canvas = await window.html2canvas(copy, { scale: 3, backgroundColor: '#EFEEEA', logging: false });
+      var pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a5', orientation: 'portrait', compress: true });
+      var pw = 148, ph = 210;
+      var imgH = canvas.height * pw / canvas.width;
+      var pages = Math.max(1, Math.round(imgH / ph));
+      var data = canvas.toDataURL('image/png');
+      for (var i = 0; i < pages; i++) {
+        if (i) pdf.addPage();
+        pdf.addImage(data, 'PNG', 0, -i * ph, pw, imgH, undefined, 'FAST');
+      }
+      return pdf.output('blob');
+    } finally {
+      if (stage.parentNode) stage.parentNode.removeChild(stage);
+    }
+  }
+  function download(blob, name) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+  }
+
+  async function exportPdf() {
+    if (busy) return;
+    busy = true;
+    pdfBtns.forEach(function (b) { b.disabled = true; });
+    setStatus('Đang tạo PDF…');
+    try {
+      var usePrint = false;
+      try { await ensureLibs(); } catch (e) { usePrint = true; }
+
+      var no = nextNo, name = 'HD-' + no4(no) + '.pdf';
+      if (usePrint) {
+        // Libraries could not be loaded (offline): use the browser's own "Save as PDF" through the print dialog.
+        render();
+        var prevTitle = document.title;
+        document.title = name.replace(/\.pdf$/, '');
+        window.print();
+        document.title = prevTitle;
+      } else {
+        download(await buildPdf(), name);
+      }
+      var dpx = dateParts(state.f.issued);
+      pushHist({ number: no4(no), c_name: state.f.c_name || '', date: dpx.d ? dpx.d + '/' + dpx.m + '/' + dpx.y : '', total: calc().total });
+      try { localStorage.setItem(LAST_KEY, String(no)); } catch (e2) { /* storage unavailable */ }
+      nextNo = no + 1;
+      syncNumber(); render();
+      setStatus((usePrint ? 'Đã mở hộp thoại in cho ' : 'Đã tạo ') + name + (usePrint ? ' (chọn Lưu thành PDF)' : '') + '. Hóa đơn kế tiếp: ' + no4(nextNo));
+    } catch (err) {
+      setStatus('Không tạo được PDF. ' + ((err && err.message) || ''), true);
+      syncNumber(); render();
+    } finally {
+      busy = false;
+      pdfBtns.forEach(function (b) { b.disabled = false; });
+    }
+  }
+  pdfBtns.forEach(function (b) { b.addEventListener('click', exportPdf); });
+
+  syncForm();
+  render();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(render);
+})();
+</script>
+</body>
+</html>
